@@ -4,29 +4,52 @@ import { Platform } from 'react-native';
 import { Task } from '../types';
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: false, shouldSetBadge: false })
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+
+    // 👇 Nieuwe velden toegevoegd in SDK 53+
+    shouldShowBanner: true, // iOS: toon banner
+    shouldShowList: true,   // iOS: toon in Notification Center
+  }),
 });
+
 
 export async function initNotificationsAsync() {
   try {
-    if (!Device.isDevice) return;
-    const { status: existing } = await Notifications.getPermissionsAsync();
-    let finalStatus = existing;
-    if (existing !== 'granted') {
+    if (!Device.isDevice) {
+      console.warn('Notifications only work on a real device');
+      return;
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
-    if (finalStatus !== 'granted') { console.warn('No notif permission'); return; }
+
+    if (finalStatus !== 'granted') {
+      console.warn('No notification permission');
+      return;
+    }
+
+    // Android: notificatiekanaal vereist
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('grindy-default', {
-        name: 'Grindy reminders',
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Default',
         importance: Notifications.AndroidImportance.DEFAULT,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#0EA5A4'
+        lightColor: '#0EA5A4',
       });
     }
-  } catch (e) { console.warn(e); }
+  } catch (err) {
+    console.warn('initNotificationsAsync error:', err);
+  }
 }
+
 
 export async function scheduleReminderForTask(task: Task): Promise<string | null> {
   try {

@@ -1,5 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, SafeAreaView, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  SafeAreaView,
+  FlatList,
+  StyleSheet,
+  ActivityIndicator,
+  TouchableOpacity,
+  Animated,
+} from 'react-native';
 import { useTasks } from './hooks/useTasks';
 import TaskCard from './components/TaskCard';
 import QuickAddSheet from './components/QuickAddSheet';
@@ -7,78 +16,123 @@ import TaskDetailSheet from './components/TaskDetailSheet';
 import { format } from 'date-fns';
 import { theme } from './utils/theme';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from './components/themeContext';
+import { responsiveWidth, responsiveHeight } from "react-native-responsive-dimensions";
+
 
 export default function Home() {
-  const { tasks, loading, addTask, removeTask, toggleComplete, addSubtask, streak } = useTasks();
+  const { tasks, loading, addTask, removeTask, toggleComplete, streak } = useTasks();
   const [detailTask, setDetailTask] = useState<string | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
+  const [quickAddVisible, setQuickAddVisible] = useState(false);
+  const { darkMode } = useTheme();
+  const colors = darkMode ? theme.dark.colors : theme.light.colors;
 
-  const todayTasks = useMemo(() => {
-    const unscheduled = tasks.filter(t => !t.scheduledAt);
-    const scheduled = tasks.filter(t => t.scheduledAt).sort((a,b) => (a.scheduledAt! > b.scheduledAt! ? 1 : -1));
-    return [...unscheduled, ...scheduled];
-  }, [tasks]);
+  const todayTasks = useMemo(() => tasks.filter(t => !t.archived), [tasks]);
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
-  const handleQuickAdd = async (title: string, notes?: string) => {
-    await addTask({ title, notes, scheduledAt: null, priority: 'medium' });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  React.useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: quickAddVisible ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [quickAddVisible]);
+
+  const handleQuickAdd = (title: string, notes?: string) => {
+    addTask({title, notes});
+    Haptics.selectionAsync();
   };
 
-  const openDetail = (taskId: string) => { setDetailTask(taskId); setDetailVisible(true); };
+  const openDetail = (taskId: string) => {
+    setDetailTask(taskId);
+    setDetailVisible(true);
+  };
+
   const currentTask = tasks.find(t => t.id === detailTask) ?? null;
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={styles.h1}>Grindy</Text>
-        <Text style={styles.sub}>{format(new Date(), 'EEEE, dd LLL')}</Text>
-        <Text style={styles.streak}>🔥 Streak: {streak}</Text>
+        <Text style={[styles.sub, { color: colors.subtext }]}>{format(new Date(), 'EEEE, dd LLL')}</Text>
+        <Text style={[styles.streak, { color: colors.accent }]}>🔥 Streak: {streak}</Text>
       </View>
 
-      {/* Quick Add */}
-      <QuickAddSheet onAdd={handleQuickAdd} />
-
-      {/* Task List */}
       {loading ? (
-        <ActivityIndicator size="large" color={theme.colors.accent} style={{marginTop:40}} />
+        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={todayTasks}
+          keyExtractor={i => i.id}
           renderItem={({ item }) => (
             <TaskCard
               task={item}
               onToggle={toggleComplete}
               onDelete={removeTask}
-              onPress={() => openDetail(item.id)}
+              onPress={openDetail}
             />
           )}
-          keyExtractor={i => i.id}
-          contentContainerStyle={{ paddingBottom: 140 }}
-          ListEmptyComponent={
-            <Text style={{textAlign:'center', marginTop:40, color: theme.colors.subtext}}>
-              No tasks yet — add one!
-            </Text>
-          }
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 120 }}
         />
       )}
 
-      {/* Task Detail Modal */}
+      {/* ✅ OF een plus-knop OF de sheet */}
+      {!quickAddVisible && (
+        <TouchableOpacity
+          onPress={() => setQuickAddVisible(true)}
+          style={[styles.fab, { backgroundColor: colors.accent }]}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.plus}>+</Text>
+        </TouchableOpacity>
+      )}
+
+      {quickAddVisible && (
+        <Animated.View style={{ opacity: fadeAnim }}>
+          <QuickAddSheet onAdd={handleQuickAdd} onClose={() => setQuickAddVisible(false)} />
+        </Animated.View>
+      )}
+
       <TaskDetailSheet
         visible={detailVisible}
         task={currentTask}
         onClose={() => setDetailVisible(false)}
-        onSave={async (id, patch) => { await (await import('./hooks/useTasks')).updateTask?.(id, patch); }}
-        onDelete={removeTask}
+        onSave={() => {}}
+        onDelete={() => {}}
       />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
-  header: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8 },
-  h1: { fontSize: 34, fontWeight: '800', color: theme.colors.text },
-  sub: { fontSize: 14, color: theme.colors.subtext, marginTop: 4 },
-  streak: { marginTop: 8, color: theme.colors.accent, fontWeight: '700' },
+  container: { flex: 1 },
+  header: {     
+    paddingHorizontal: responsiveWidth(5),
+    paddingTop: responsiveHeight(10),
+    paddingBottom: responsiveHeight(1),
+  },
+  sub: { fontSize: 14, marginTop: 4 },
+  streak: { marginTop: 8, fontWeight: '700' },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 25,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  plus: {
+    color: '#fff',
+    fontSize: 32,
+    lineHeight: 34,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
 });

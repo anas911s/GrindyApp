@@ -1,37 +1,78 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { Task } from '../types';
 import { theme } from '../utils/theme';
 
-export default function TaskDetailSheet({ visible, task, onClose, onSave, onDelete }: {
+type TaskDetailSheetProps = {
   visible: boolean;
   task?: Task | null;
   onClose: () => void;
   onSave: (id: string, patch: Partial<Task>) => void;
   onDelete: (id: string) => void;
-}) {
+  darkMode?: boolean;
+};
+
+export default function TaskDetailSheet({
+  visible,
+  task,
+  onClose,
+  onSave,
+  onDelete,
+  darkMode = false,
+}: TaskDetailSheetProps) {
   const [title, setTitle] = useState(task?.title ?? '');
   const [notes, setNotes] = useState(task?.notes ?? '');
 
-  React.useEffect(() => {
+  useEffect(() => {
     setTitle(task?.title ?? '');
     setNotes(task?.notes ?? '');
   }, [task]);
 
   if (!task) return null;
 
+  const colors = darkMode ? theme.dark.colors : theme.light.colors;
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <ScrollView style={styles.container}>
-        <Text style={styles.h1}>Edit task</Text>
-        <TextInput value={title} onChangeText={setTitle} style={styles.input} />
-        <TextInput value={notes} onChangeText={setNotes} style={[styles.input, { height: 120 }]} multiline />
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={[styles.h1, { color: colors.text }]}>Edit Task</Text>
+
+        <TextInput
+          value={title}
+          onChangeText={setTitle}
+          style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
+          placeholder="Task title"
+          placeholderTextColor={colors.text + '88'}
+        />
+
+        <TextInput
+          value={notes}
+          onChangeText={setNotes}
+          style={[styles.input, { backgroundColor: colors.surface, color: colors.text, height: 120 }]}
+          multiline
+          placeholder="Notes (optional)"
+          placeholderTextColor={colors.text + '88'}
+        />
+
         <View style={{ flexDirection: 'row', marginTop: 12 }}>
-          <TouchableOpacity style={styles.save} onPress={() => { onSave(task.id, { title, notes }); onClose(); }}>
-            <Text style={{ color: '#fff' }}>Save</Text>
+          <TouchableOpacity
+            style={[styles.save, { backgroundColor: colors.accent }]}
+            onPress={() => {
+              onSave(task.id, { title, notes });
+              onClose();
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.delete} onPress={() => { onDelete(task.id); onClose(); }}>
-            <Text style={{ color: '#fff' }}>Delete</Text>
+
+          <TouchableOpacity
+            style={[styles.delete, { backgroundColor: colors.danger }]}
+            onPress={() => {
+              onDelete(task.id);
+              onClose();
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Delete</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -40,9 +81,9 @@ export default function TaskDetailSheet({ visible, task, onClose, onSave, onDele
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: theme.colors.background },
+  container: { flex: 1, padding: 20 },
   h1: { fontSize: 22, fontWeight: '800', marginBottom: 12 },
-  input: { backgroundColor: theme.colors.surface, padding: 12, borderRadius: 10, marginTop: 8 },
-  save: { backgroundColor: theme.colors.accent, padding: 12, borderRadius: 10, marginRight: 8 },
-  delete: { backgroundColor: theme.colors.danger, padding: 12, borderRadius: 10 }
+  input: { padding: 12, borderRadius: 10, marginTop: 8 },
+  save: { padding: 12, borderRadius: 10, marginRight: 8, flex: 1, alignItems: 'center' },
+  delete: { padding: 12, borderRadius: 10, flex: 1, alignItems: 'center' },
 });

@@ -6,7 +6,7 @@ export type Task = {
   createdAt: string;
   scheduledAt?: string | null;
   notificationId?: string | null;
-  priority?: number;
+  priority?: "low" | "medium" | "high";
   subtasks?: { id: string; title: string; completed: boolean }[];
   [key: string]: any;
 };

@@ -10,26 +10,28 @@ import { theme } from '../utils/theme';
 
 const Tab = createBottomTabNavigator();
 
-export default function Tabs() {
+export default function Tabs({ darkMode = false }: { darkMode?: boolean }) {
+  const colors = darkMode ? theme.dark.colors : theme.light.colors;
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: false,
-        tabBarActiveTintColor: theme.colors.accent,
+        tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: '#CBD5E1',
         tabBarStyle: {
-          backgroundColor: '#fff',
+          backgroundColor: colors.background,
           borderTopWidth: 0,
           elevation: 10,
-          height: 70,
+          height: 90,
         },
         tabBarIcon: ({ color, size, focused }) => {
           let iconName: keyof typeof Ionicons.glyphMap = 'home-outline';
 
           switch (route.name) {
             case 'Home':
-              iconName = focused ? 'home' : 'home-outline';
+              iconName = focused ? 'home' : 'list-outline';
               break;
             case 'Agenda':
               iconName = focused ? 'calendar' : 'calendar-outline';

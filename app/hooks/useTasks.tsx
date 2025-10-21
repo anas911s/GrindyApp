@@ -116,26 +116,36 @@ export function useTasks() {
   }, [saveQueue]);
 
   /** Task operations */
-  const addTask = useCallback(async (payload: Omit<Task, 'id' | 'createdAt' | 'completed' | 'notificationId' | typeof LOCAL_VERSION_FIELD>) => {
-    const id = generateId();
-    const createdAt = new Date().toISOString();
-    const newTask: Task = { ...payload, id, createdAt, completed: false, notificationId: null, [LOCAL_VERSION_FIELD]: 1 } as any;
+const addTask = useCallback(async (payload: Omit<Task, 'id' | 'createdAt' | 'completed' | 'notificationId' | typeof LOCAL_VERSION_FIELD>) => {
+  const id = generateId();
+  const createdAt = new Date().toISOString();
 
-    if ((newTask as any).scheduledAt) {
-      try {
-        const nid = await scheduleReminderForTask(newTask);
-        newTask.notificationId = nid;
-      } catch (e) { console.warn('[useTasks] schedule failed', e); }
-    }
+  const newTask: Task = {
+    ...payload,
+    id,
+    createdAt,
+    completed: false,
+    notificationId: null,
+    priority: payload.priority ?? 'high', // ← default priority
+    [LOCAL_VERSION_FIELD]: 1,
+  } as any;
 
-    setTasks(prev => [newTask, ...prev]);
-    pushToQueue({ op: 'create', id, payload: newTask, ts: Date.now() });
-    undoRef.current.unshift({ type: 'create', task: newTask, ts: Date.now() });
-    if (undoRef.current.length > 20) undoRef.current.pop();
-    saveUndo();
+  if ((newTask as any).scheduledAt) {
+    try {
+      const nid = await scheduleReminderForTask(newTask);
+      newTask.notificationId = nid;
+    } catch (e) { console.warn('[useTasks] schedule failed', e); }
+  }
 
-    return newTask;
-  }, [pushToQueue, saveUndo]);
+  setTasks(prev => [newTask, ...prev]);
+  pushToQueue({ op: 'create', id, payload: newTask, ts: Date.now() });
+  undoRef.current.unshift({ type: 'create', task: newTask, ts: Date.now() });
+  if (undoRef.current.length > 20) undoRef.current.pop();
+  saveUndo();
+
+  return newTask;
+}, [pushToQueue, saveUndo]);
+
 
   const updateTask = useCallback(async (id: string, patch: Partial<Task>) => {
     const prev = tasks.find(t => t.id === id);
@@ -162,6 +172,39 @@ export function useTasks() {
 
     pushToQueue({ op: 'update', id, payload: patch, ts: Date.now() });
     return true;
+  }, [tasks, pushToQueue, saveUndo]);
+
+    /** Toggle completion status */
+  const toggleComplete = useCallback(async (id: string) => {
+    const prev = tasks.find(t => t.id === id);
+    if (!prev) return;
+
+    const updated = { ...prev, completed: !prev.completed };
+
+    // update local state
+    setTasks(prevArr =>
+      prevArr.map(t =>
+        t.id === id ? updated : t
+      )
+    );
+
+    // push to undo stack
+    undoRef.current.unshift({ type: 'update', before: prev, ts: Date.now() });
+    if (undoRef.current.length > 20) undoRef.current.pop();
+    saveUndo();
+
+    // cancel notification if completed
+    if (updated.completed && updated.notificationId) {
+      try { await cancelReminder(updated.notificationId); } catch (e) { console.warn(e); }
+    }
+
+    // sync change
+    pushToQueue({
+      op: 'update',
+      id,
+      payload: { completed: updated.completed },
+      ts: Date.now(),
+    });
   }, [tasks, pushToQueue, saveUndo]);
 
   const removeTask = useCallback(async (id: string) => {
@@ -206,7 +249,17 @@ export function useTasks() {
   }, [tasks, pushToQueue]);
 
   return useMemo(() => ({
-    tasks, loading, streak, lastStreakDate,
-    addTask, updateTask, removeTask, undo, clearAll, flushQueue
-  }), [tasks, loading, streak, lastStreakDate, addTask, updateTask, removeTask, undo, clearAll, flushQueue]);
+    tasks,
+    loading,
+    streak,
+    lastStreakDate,
+    addTask,
+    updateTask,
+    removeTask,
+    toggleComplete,
+    undo,
+    clearAll,
+    flushQueue
+  }), [tasks, loading, streak, lastStreakDate, addTask, updateTask, removeTask, toggleComplete, undo, clearAll, flushQueue]);
+
 }
